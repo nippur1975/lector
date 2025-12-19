@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor TASA - Centro de Control V20.0 (Fix Comillas ID)</title>
+    
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-body: #e3e8ee; --bg-container: #ffffff; --bg-panel: #fafafa;
+            --text-main: #333333; --text-muted: #666666; --border-col: #dcdcdc;
+            --primary-col: #014377; --accent-col: #ff6f00;
+            --alert-bg: #ffebee; --alert-text: #c62828;
+            --info-bg: #e8f5e9; --info-text: #2e7d32;
+            --header-bg: #ffffff; --shadow: 0 4px 10px rgba(0,0,0,0.08);
+            --led-size: 18px;
+            --chart-pitch: #014377; --chart-roll: #ff6f00;
+            --compass-bg: #263238; --compass-text: #cfd8dc; --compass-accent: #ff5252;
+            --cala-bg: #e8f5e9; --cala-border: #c8e6c9; --cala-title: #2e7d32;
+            --cala-item-bg: white; --cala-item-border: #a5d6a7; --cala-id-bg: #c8e6c9; --cala-id-text: #1b5e20;
+        }
+        body.night-mode {
+            --bg-body: #050505; --bg-container: #111111; --bg-panel: #1a1a1a;
+            --text-main: #e0e0e0; --text-muted: #999999; --border-col: #333333;
+            --primary-col: #ff5252; --accent-col: #ffb74d;
+            --alert-bg: #3b0000; --alert-text: #ff8a80;
+            --info-bg: #002200; --info-text: #69f0ae;
+            --header-bg: #1e1e1e;
+            --chart-pitch: #ff5252; --chart-roll: #ffb74d;
+            --compass-bg: #000000; --compass-text: #ff3333; --compass-accent: #ff1744;
+            --cala-bg: #111; --cala-border: #333; --cala-title: #69f0ae;
+            --cala-item-bg: #220000; --cala-item-border: #550000; --cala-id-bg: #440000; --cala-id-text: #ff9999;
+        }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px; background-color: var(--bg-body); color: var(--text-main); transition: background 0.3s; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .header-compact { display: flex; justify-content: space-between; align-items: center; background: var(--header-bg); padding: 8px 15px; border-radius: 8px; border: 1px solid var(--border-col); box-shadow: var(--shadow); margin-bottom: 10px; flex-shrink: 0; }
+        .logo-title { font-weight: 900; font-size: 1.1rem; color: var(--primary-col); display: flex; align-items: center; gap: 8px; }
+        select, button { padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; font-weight: 600; font-size: 0.85rem; background: var(--bg-panel); color: var(--text-main); }
+        .btn-primary { background-color: var(--primary-col); color: white; border: none; }
+        
+        .dashboard-grid { display: grid; grid-template-columns: 280px 1fr 260px; gap: 15px; flex-grow: 1; overflow: hidden; }
+        
+        /* COLUMNA 1 */
+        .col-visuals { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+        .ship-box { background: linear-gradient(180deg, #e1f5fe 0%, #b3e5fc 60%, #0288d1 60%); border-radius: 12px; position: relative; overflow: hidden; border: 1px solid var(--border-col); height: 240px; flex-shrink: 0; }
+        body.night-mode .ship-box { background: linear-gradient(180deg, #001122 0%, #000000 100%); border-color: #444; }
+        .viz-wrapper { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+        .ship-svg { width: 100%; height: 100%; }
+        
+        .rotating-group { transition: transform 0.3s ease-out; transform-box: fill-box; }
+        #compass-needle { transform-origin: center; }
+
+        .digital-readout { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.8); color: #00e676; font-family: 'Roboto Mono', monospace; font-size: 1.1rem; padding: 2px 6px; border-radius: 4px; }
+        .box-title { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.9); padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; color: #01579b; z-index: 10; }
+        .ship-tag-overlay { position: absolute; top: 10px; right: 10px; background: rgba(0, 0, 0, 0.6); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; z-index: 10; pointer-events: none; }
+
+        /* COLUMNA 2 - LEDS y Charts */
+        .col-center { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 5px; }
+        .panel { background: var(--bg-panel); border: 1px solid var(--border-col); border-radius: 8px; padding: 10px; box-shadow: var(--shadow); flex-shrink: 0; }
+        
+        .command-panel { display: flex; justify-content: space-between; align-items: center; padding: 5px; gap: 10px; }
+        .cmd-left { display: flex; flex-direction: column; gap: 8px; text-align: left; min-width: 140px; }
+        .coord-row { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #eee; padding-bottom: 2px; }
+        .coord-label { font-size: 0.7rem; font-weight: 800; color: #78909c; text-transform: uppercase; }
+        .coord-val { font-family: 'Roboto Mono', monospace; font-size: 0.9rem; font-weight: 700; color: var(--text-main); }
+        
+        .cmd-center-col { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-grow: 1; }
+        .ship-main-title { font-size: 1.8rem; font-weight: 900; color: var(--text-main); margin-bottom: 5px; line-height: 1; }
+        .heading-label { font-size: 0.65rem; font-weight: bold; color: var(--text-muted); margin-bottom: 2px; }
+        .heading-val-text { font-weight: bold; font-size: 1rem; margin-top: -5px; }
+        
+        .cmd-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; min-width: 120px; }
+        .led-prox-row { display: flex; gap: 15px; margin-bottom: 5px; }
+        .led-mini-container { display: flex; flex-direction: column; align-items: center; }
+        .led-mini-label { font-size: 0.6rem; font-weight: bold; color: #666; margin-top: 2px; }
+        .port-badge { border: 1px solid #d32f2f; color: #d32f2f; background: #fff; font-weight: 800; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; margin-bottom: 5px; display: none; }
+        body.night-mode .port-badge { background: #3b0000; color: #ff5252; border-color: #ff5252; }
+        
+        .velocity-group { display: flex; align-items: baseline; gap: 5px; }
+        .vel-label { font-size: 1rem; color: #666; font-weight: 300; }
+        .vel-number { font-size: 2rem; font-weight: 700; color: var(--text-main); line-height: 1; }
+        .vel-unit { font-size: 1rem; color: #666; }
+
+        .led { width: var(--led-size); height: var(--led-size); border-radius: 50%; background: #ccc; border: 2px solid #999; margin-bottom: 2px; }
+        .led.blue { background: #2979ff; border-color: #1565c0; box-shadow: 0 0 8px #2979ff; }
+        .led.red { background: #d50000; border-color: #b71c1c; box-shadow: 0 0 15px #ff1744; }
+        
+        .live-chart-wrapper { height: 180px; width: 100%; }
+        .history-chart-wrapper { height: 250px; width: 100%; }
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; font-size: 0.9rem; font-weight: bold; }
+        .tabs-container button { padding: 2px 8px; font-size: 0.75rem; border-radius: 12px; }
+        .tabs-container button.active { background: var(--primary-col); color: white; }
+
+        /* COLUMNA 3: ALERTAS */
+        .col-alerts { background: var(--bg-panel); border-left: 1px solid var(--border-col); display: flex; flex-direction: column; height: 100%; border-radius: 8px; overflow: hidden; }
+        .alerts-header { padding: 8px; background: var(--border-col); font-weight: bold; font-size: 0.85rem; text-align: center; }
+        .alerts-list { flex-grow: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+        .led-strip-compact { display: flex; justify-content: space-around; padding: 10px 5px; background: var(--bg-panel); border-bottom: 1px solid var(--border-col); }
+        .led-unit { display: flex; flex-direction: column; align-items: center; width: 50px; text-align: center; }
+        .led-label { font-size: 0.65rem; font-weight: bold; color: var(--text-muted); }
+        .led-ship-name { font-size: 0.6rem; font-weight: 900; color: #d32f2f; background: #ffebee; padding: 1px 4px; border-radius: 3px; display: none; white-space: nowrap; margin-top: 2px;}
+        
+        .alert-item { background: var(--alert-bg); border-left: 4px solid var(--alert-text); padding: 8px; border-radius: 4px; font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .alert-info { display: flex; flex-direction: column; }
+        .alert-ship { font-weight: 900; color: var(--alert-text); }
+        .alert-type { font-weight: 600; color: #555; font-size: 0.75rem; }
+        .alert-val { font-family: 'Roboto Mono'; font-weight: bold; }
+        .alert-cala { background: #e8f5e9; border-left: 4px solid #2e7d32; color: #1b5e20; }
+        .alert-cala .alert-ship { color: #1b5e20; }
+
+        /* MAPA MODAL */
+        #mapModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:9999; }
+        .map-wrapper { position:absolute; top:2%; left:2%; width:96%; height:96%; background:#fff; border-radius:8px; display:flex; flex-direction:column; overflow: hidden;}
+        .map-header { padding: 10px; background: var(--primary-col); color: white; display: flex; justify-content: space-between; align-items: center; }
+        #map { flex-grow: 1; width: 100%; height: 100%; cursor: crosshair; }
+
+        @media (max-width: 1000px) { .dashboard-grid { grid-template-columns: 1fr; display: block; overflow-y: auto; } body { height: auto; overflow: auto; } .col-visuals, .col-center, .col-alerts { margin-bottom: 20px; height: auto; border: none; } .col-alerts { height: 250px; border: 1px solid var(--border-col); } }
+    </style>
+</head>
+<body>
+
+<header class="header-compact">
+    <div class="logo-title"><span>⚓</span> MONITOR FLOTA TASA</div>
+    <div style="display:flex; gap:10px; align-items:center;">
+        <select id="shipSelect" onchange="changeShip(this.value)"><option>Cargando...</option></select>
+        <div id="status-msg" style="font-size:0.8rem; font-weight:bold; color:gray;">● INICIANDO...</div>
+        
+        <button onclick="openMap()">🗺 Mapa</button>
+        <button class="btn-primary" onclick="toggleNightMode()">🌙</button>
+    </div>
+</header>
+
+<div class="dashboard-grid">
+
+    <div class="col-visuals">
+        <div class="ship-box">
+            <div class="box-title">ROLL</div>
+            <div id="ship-name-roll" class="ship-tag-overlay">--</div>
+            <div class="viz-wrapper">
+                <svg class="ship-svg" viewBox="0 0 200 240">
+                    <defs><linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(79, 195, 247, 0.6)"/><stop offset="100%" stop-color="rgba(1, 87, 155, 0.9)"/></linearGradient></defs>
+                    <g id="roll-group" class="rotating-group" style="transform-origin: 100px 150px;">
+                        <path d="M60,150 Q100,210 140,150 L140,140 L60,140 Z" fill="#b71c1c" stroke="#333"/>
+                        <path d="M50,140 L60,150 L140,150 L150,140 L150,110 L50,110 Z" fill="#263238" stroke="#333"/>
+                        <rect x="55" y="105" width="90" height="5" fill="#cfd8dc"/>
+                        <rect x="70" y="80" width="60" height="25" fill="#eceff1" stroke="#546e7a"/>
+                        <rect x="75" y="85" width="50" height="8" fill="#455a64"/>
+                        <rect x="95" y="30" width="10" height="50" fill="#f57f17"/>
+                        <line x1="100" y1="50" x2="160" y2="70" stroke="#333" stroke-width="2"/><line x1="100" y1="50" x2="40" y2="70" stroke="#333" stroke-width="2"/>
+                    </g>
+                    <path d="M0,145 Q50,135 100,145 T200,145 V240 H0 Z" fill="url(#waterGrad)"/>
+                </svg>
+            </div>
+            <div id="val-roll" class="digital-readout">0.0°</div>
+        </div>
+
+        <div class="ship-box">
+            <div class="box-title">PITCH</div>
+            <div id="ship-name-pitch" class="ship-tag-overlay">--</div>
+            <div class="viz-wrapper">
+                <svg class="ship-svg" viewBox="0 0 300 240">
+                    <g id="pitch-group" class="rotating-group" style="transform-origin: 150px 140px;">
+                        <path d="M30,150 Q150,180 270,150 L260,140 L40,140 Z" fill="#b71c1c" stroke="#333"/>
+                        <path d="M20,110 L40,140 L260,140 L280,110 L20,110 Z" fill="#263238" stroke="#333"/>
+                        <path d="M40,110 L40,80 L90,80 L90,110 Z" fill="#eceff1" stroke="#546e7a"/>
+                        <rect x="100" y="40" width="8" height="70" fill="#f57f17"/>
+                        <line x1="104" y1="60" x2="180" y2="50" stroke="#f57f17" stroke-width="4"/>
+                        <path d="M220,110 Q240,90 260,110 Z" fill="#333"/> <path d="M210,100 L270,100 L260,110 L220,110 Z" fill="#ff6f00" stroke="#333"/>
+                    </g>
+                    <path d="M0,145 Q75,155 150,145 T300,145 V240 H0 Z" fill="url(#waterGrad)"/>
+                </svg>
+            </div>
+            <div id="val-pitch" class="digital-readout">0.0°</div>
+        </div>
+    </div>
+
+    <div class="col-center">
+        <div class="panel">
+            <div class="command-panel">
+                <div class="cmd-left">
+                    <div class="coord-row"><span class="coord-label">LATITUD</span><span id="val-lat" class="coord-val">--° --' --" S</span></div>
+                    <div class="coord-row"><span class="coord-label">LONGITUD</span><span id="val-lon" class="coord-val">--° --' --" W</span></div>
+                </div>
+
+                <div class="cmd-center-col">
+                    <div id="display-ship-name" class="ship-main-title">--</div>
+                    <span class="heading-label">RUMBO</span>
+                    <svg class="compass-svg" viewBox="0 0 100 100" style="width:60px; height:60px;">
+                        <circle cx="50" cy="50" r="46" fill="var(--compass-bg)" stroke="#455a64" stroke-width="2"/>
+                        <text x="50" y="16" fill="var(--compass-accent)" text-anchor="middle" font-size="14px" font-weight="bold">N</text>
+                        <g id="compass-needle" class="rotating-group">
+                            <path d="M50,20 L62,50 L38,50 Z" fill="var(--compass-accent)"/>
+                            <path d="M50,80 L62,50 L38,50 Z" fill="#546e7a"/>
+                            <circle cx="50" cy="50" r="4" fill="#fff"/>
+                        </g>
+                    </svg>
+                    <div id="heading-val" class="heading-val-text">000°</div>
+                </div>
+
+                <div class="cmd-right">
+                    <div class="led-prox-row">
+                        <div class="led-mini-container"><div id="led-5nm" class="led blue"></div><span class="led-mini-label">&lt; 5 NM</span></div>
+                        <div class="led-mini-container"><div id="led-2nm" class="led blue"></div><span class="led-mini-label">&lt; 2 NM</span></div>
+                    </div>
+                    <div id="port-label-display" class="port-badge">PUERTO</div>
+                    <div class="velocity-group">
+                        <span class="vel-label">VEL</span>
+                        <span id="speed-val" class="vel-number">0.0</span>
+                        <span class="vel-unit">kn</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div style="font-size:0.8rem; font-weight:bold;">⚡ Tiempo Real (10 min)</div>
+            <div id="chart-live" class="live-chart-wrapper"></div>
+        </div>
+        <div class="panel" style="position: relative;">
+            <div class="history-header">
+                <span>📅 Historial</span>
+                <div class="tabs-container">
+                    <button class="tab-btn active" id="btn-today">Hoy</button>
+                    <button class="tab-btn">1h</button>
+                    <button class="tab-btn">3D</button>
+                </div>
+            </div>
+            <div id="chart-history" class="history-chart-wrapper"></div>
+        </div>
+    </div>
+
+    <div class="col-alerts">
+        <div class="alerts-header">🔔 EVENTOS DE LA FLOTA</div>
+        <div class="led-strip-compact">
+            <div class="led-unit"><div id="led-pitch" class="led blue"></div><span class="led-label">CABECEO</span><div id="tag-pitch" class="led-ship-name"></div></div>
+            <div class="led-unit"><div id="led-roll" class="led blue"></div><span class="led-label">BALANCEO</span><div id="tag-roll" class="led-ship-name"></div></div>
+            <div class="led-unit"><div id="led-cala" class="led blue"></div><span class="led-label">CALA</span><div id="tag-cala" class="led-ship-name"></div></div>
+        </div>
+        <div id="alerts-list" class="alerts-list">
+            <div style="text-align:center; color:#999; margin-top:20px;">Sin alarmas</div>
+        </div>
+    </div>
+</div>
+
+<div id="mapModal">
+    <div class="map-wrapper">
+        <div class="map-header">
+            <span>🗺 Mapa Flota</span>
+            <button onclick="document.getElementById('mapModal').style.display='none'" style="color:red; background:white; padding:2px 8px;">✖</button>
+        </div>
+        <div id="map"></div>
+    </div>
+</div>
+
+<script>
+    // --- CONFIGURACIÓN ---
+    const API_BASE = 'http://localhost:3000/api';
+    let fullData = []; 
+    let selectedShipId = null;
+    let isNightMode = false;
+    let wasOffline = false;
+    let isChartInitialized = false;
+    let map = null;
+
+    // CONFIGURACIÓN DE CONEXIÓN
+    const CONNECTION_THRESHOLD_MINUTES = 5; 
+
+    // Base de datos de puertos para cálculo de distancia
+    const PORTS_DB = [
+        { name: "Paita", lat: -5.096, lon: -81.112 },      
+        { name: "Bayovar", lat: -5.833, lon: -81.050 },    
+        { name: "Chimbote", lat: -9.075, lon: -78.614 },
+        { name: "TASA Callao", lat: -11.933, lon: -77.142 },
+        { name: "Pisco", lat: -13.816, lon: -76.250 },
+        { name: "Ilo", lat: -17.645, lon: -71.353 }
+    ];
+
+    // --- INICIALIZACIÓN ---
+    window.onload = () => {
+        loadShips(); 
+        initLiveChart();
+        setInterval(monitorLiveFleet, 1000); 
+    };
+
+    // --- FUNCIONES MATEMÁTICAS ---
+    function toDMS(deg, isLat) {
+        if (deg === null || deg === undefined || isNaN(deg)) return "--° --' --\"";
+        const absolute = Math.abs(deg);
+        const degrees = Math.floor(absolute);
+        const minutesNotTruncated = (absolute - degrees) * 60;
+        const minutes = Math.floor(minutesNotTruncated);
+        const seconds = Math.floor((minutesNotTruncated - minutes) * 60);
+        let cardinal = "";
+        if (isLat) cardinal = deg >= 0 ? "N" : "S";
+        else cardinal = deg >= 0 ? "E" : "W";
+        return `${degrees}° ${minutes}' ${seconds}" ${cardinal}`;
+    }
+
+    function getNearestPort(lat, lon) {
+        let minD = 99999; 
+        let closest = { name: "Alta Mar", dist: 99999 };
+        PORTS_DB.forEach(p => {
+            const dLat = (lat - p.lat) * 60;
+            const dLon = (lon - p.lon) * 60 * Math.cos(lat * Math.PI / 180);
+            const dist = Math.sqrt(dLat*dLat + dLon*dLon);
+            if (dist < minD) { minD = dist; closest = { name: p.name, dist: dist }; }
+        });
+        return closest;
+    }
+
+    // --- LÓGICA PRINCIPAL ---
+
+    function changeShip(id) {
+        selectedShipId = id;
+        document.getElementById('display-ship-name').innerText = id; 
+        fullData = []; 
+        isChartInitialized = false;
+        
+        // Reset status
+        document.getElementById('status-msg').innerText = "● CARGANDO...";
+        document.getElementById('status-msg').style.color = "gray";
+
+        updateVisuals({ pitch: 0, roll: 0, speed: 0, heading: 0, lat: 0, lon: 0, date: new Date() });
+        loadAndInitChart(id);
+    }
+
+    async function loadShips() {
+        const sel = document.getElementById('shipSelect');
+        try {
+            const res = await fetch(`${API_BASE}/ships`);
+            if(!res.ok) throw new Error("Offline");
+            const ships = await res.json();
+            sel.innerHTML = '<option disabled selected>Seleccione...</option>';
+            ships.forEach(s => sel.innerHTML += `<option value="${s.ship_id}">${s.ship_id}</option>`);
+        } catch(e) {
+            console.warn("Modo Offline activado");
+            sel.innerHTML = '<option disabled selected>Modo Offline</option>';
+            ['TASA 43', 'TASA 38', 'TASA 412'].forEach(id => sel.innerHTML += `<option value="${id}">${id} (Sim)</option>`);
+            wasOffline = true;
+        }
+    }
+
+    // --- CARGA DE DATOS CORREGIDA (FIX COMILLAS) ---
+    async function loadAndInitChart(shipId) {
+        try {
+            if(!wasOffline) {
+                const res = await fetch(`${API_BASE}/datos?shipId=${shipId}`);
+                if(res.ok) {
+                    const rawData = await res.json();
+                    
+                    let cleanData = Array.isArray(rawData) ? rawData : (rawData.recordset || []);
+
+                    // Normalización del ID para filtrado
+                    const targetId = String(shipId).trim().toUpperCase();
+
+                    fullData = cleanData
+                        .map(d => parseData(d)) // Limpia comillas del ID AQUÍ
+                        .filter(d => d.ship_id.toUpperCase().includes(targetId)) // Filtro flexible
+                        .sort((a,b) => a.date - b.date);
+                }
+            } else {
+                fullData = generateMockHistory();
+            }
+
+            if (fullData.length > 0) {
+                const lastPoint = fullData[fullData.length - 1];
+                
+                // Actualizar gráfica
+                const windowData = fullData.filter(d => d.date.getTime() >= (lastPoint.date.getTime() - 600000));
+                drawInitialPlot(windowData);
+                isChartInitialized = true;
+                
+                // Actualizar Visuales y CONEXIÓN
+                updateVisuals(lastPoint);
+                updateConnectionStatus(lastPoint);
+
+            } else {
+                // Si realmente no hay datos
+                initLiveChart();
+                isChartInitialized = true;
+                document.getElementById('status-msg').innerText = "● SIN DATOS";
+                document.getElementById('status-msg').style.color = "gray";
+            }
+        } catch(e) {
+            console.error("Error cargando historial:", e);
+            initLiveChart();
+            isChartInitialized = true;
+        }
+    }
+
+    function updateConnectionStatus(lastPoint) {
+        const now = new Date();
+        const diffMinutes = (now - lastPoint.date) / 60000;
+        const statusEl = document.getElementById('status-msg');
+
+        if (diffMinutes < CONNECTION_THRESHOLD_MINUTES) {
+            statusEl.innerHTML = "● ONLINE";
+            statusEl.style.color = "#00e676"; 
+        } else {
+            // Muestra fecha de desconexión
+            const dateStr = lastPoint.date.toLocaleString('es-PE');
+            statusEl.innerHTML = `● 🔴 DESCONECTADO (Desde: ${dateStr})`;
+            statusEl.style.color = "#ff3d00"; 
+        }
+    }
+
+    async function monitorLiveFleet() {
+        let fleetData = [];
+
+        if (!wasOffline) {
+            try {
+                const res = await fetch(`${API_BASE}/flota/live`);
+                if(res.ok) fleetData = await res.json();
+            } catch(e) { wasOffline = true; }
+        }
+
+        if (wasOffline || fleetData.length === 0) {
+            fleetData = generateMockFleet();
+        }
+
+        // 1. Barrido de Eventos
+        updateFleetAlerts(fleetData);
+
+        // 2. Actualizar Visualización
+        if(!selectedShipId) return;
+        
+        const cleanFleet = fleetData.map(d => parseData(d));
+        
+        // Búsqueda flexible en el feed en vivo
+        const targetId = String(selectedShipId).trim().toUpperCase();
+        const myShip = cleanFleet.find(s => s.ship_id.toUpperCase().includes(targetId));
+
+        if (myShip) {
+            // Si hay datos en vivo, actualizar todo
+            updateConnectionStatus(myShip);
+            updateVisuals(myShip);
+            if (isChartInitialized) {
+                fullData.push(myShip);
+                if(fullData.length > 3600) fullData.shift();
+                render10MinWindow();
+            }
+        }
+    }
+
+    // --- PARSEO AGRESIVO: Elimina ' y " de los IDs ---
+    function parseData(d) {
+        let rawDate = d.Date_event || d.date_event || d.date || Date.now();
+        let dateObj = new Date(rawDate);
+        const userOffset = dateObj.getTimezoneOffset() * 60000;
+        dateObj = new Date(dateObj.getTime() + userOffset);
+
+        // LIMPIEZA DE ID: Elimina cualquier ' o "
+        // Esto convierte 'T412' (con comillas) en T412
+        let rawID = d.ship_id || d.ShipID || "";
+        let cleanID = String(rawID).replace(/['"]/g, '').trim();
+
+        return {
+            ...d,
+            ship_id: cleanID, // ID limpio
+            date: dateObj,
+            lat: parseFloat(d.Latitud || d.lat || 0),
+            lon: parseFloat(d.Longitud || d.lon || 0),
+            speed: parseFloat(d.Velocidad || d.speed || 0),
+            heading: parseFloat(d.Heading || d.heading || 0),
+            pitch: parseFloat(d.Pitch || d.pitch || 0),
+            roll: parseFloat(d.Roll || d.roll || 0),
+            TipoAlarma: d.TipoAlarma, 
+            EstadoAlarma: d.EstadoAlarma, 
+            ValorActual: d.ValorActual, 
+            CalaID: d.CalaID
+        };
+    }
+
+    function updateFleetAlerts(fleet) {
+        const listEl = document.getElementById('alerts-list');
+        listEl.innerHTML = ''; 
+
+        let globalPitch = false; let offenderPitch = "";
+        let globalRoll = false;  let offenderRoll = "";
+        let globalCala = false;  let offenderCala = "";
+        let hasAlerts = false;
+
+        fleet.forEach(ship => {
+            const estado = ship.EstadoAlarma || ""; 
+            const isActive = (estado === "ACTIVADA" || estado === "ON" || estado == 1);
+
+            if (isActive) {
+                if (ship.TipoAlarma === "PITCH_SENTADO" || ship.TipoAlarma === "PITCH_ENCABUZADO") {
+                    globalPitch = true; offenderPitch = ship.ship_id;
+                    addAlertItem(ship.ship_id, ship.TipoAlarma, `${ship.ValorActual}°`, false);
+                    hasAlerts = true;
+                }
+                else if (ship.TipoAlarma === "ROLL_BABOR" || ship.TipoAlarma === "ROLL_ESTRIBOR") {
+                    globalRoll = true; offenderRoll = ship.ship_id;
+                    addAlertItem(ship.ship_id, ship.TipoAlarma, `${ship.ValorActual}°`, false);
+                    hasAlerts = true;
+                }
+            }
+            if (ship.CalaID && ship.CalaID !== '0' && ship.CalaID !== "") {
+                globalCala = true; offenderCala = ship.ship_id;
+                addAlertItem(ship.ship_id, "EN CALA", `ID: ${ship.CalaID}`, true);
+                hasAlerts = true;
+            }
+        });
+
+        if(!hasAlerts) {
+            listEl.innerHTML = '<div style="text-align:center; color:#999; margin-top:20px;">Sin eventos activos</div>';
+        }
+
+        updateLedStatus('pitch', globalPitch, offenderPitch);
+        updateLedStatus('roll', globalRoll, offenderRoll);
+        updateLedStatus('cala', globalCala, offenderCala);
+    }
+
+    function addAlertItem(id, type, val, isCala) {
+        const el = document.createElement('div');
+        el.className = isCala ? 'alert-item alert-cala' : 'alert-item';
+        el.innerHTML = `
+            <div class="alert-info"><span class="alert-ship">${id}</span><span class="alert-type">${type ? type.replace('_', ' ') : ''}</span></div>
+            <div class="alert-val">${val}</div>
+        `;
+        document.getElementById('alerts-list').appendChild(el);
+    }
+
+    function updateLedStatus(type, isActive, shipName) {
+        const led = document.getElementById(`led-${type}`);
+        const tag = document.getElementById(`tag-${type}`);
+        if (isActive) { led.className = "led red"; tag.style.display = "block"; tag.innerText = shipName; } 
+        else { led.className = "led blue"; tag.style.display = "none"; }
+    }
+
+    function updateVisuals(data) {
+        document.getElementById('val-pitch').innerText = data.pitch.toFixed(1) + "°";
+        document.getElementById('val-roll').innerText = data.roll.toFixed(1) + "°";
+        document.getElementById('speed-val').innerText = data.speed.toFixed(1);
+        document.getElementById('heading-val').innerText = Math.round(data.heading).toString().padStart(3,'0') + "°";
+        
+        document.getElementById('val-lat').innerText = toDMS(data.lat, true);
+        document.getElementById('val-lon').innerText = toDMS(data.lon, false);
+
+        ['roll','pitch'].forEach(k => {
+            const el = document.getElementById(`ship-name-${k}`);
+            if(el) el.innerText = selectedShipId;
+        });
+
+        let visualPitch = data.pitch;
+        if (Math.abs(data.pitch) > 8.0) {
+            const sign = Math.sign(data.pitch);
+            visualPitch = sign * (8.0 + (Math.abs(data.pitch) - 8.0) * 0.4);
+        }
+        document.getElementById('pitch-group').style.transform = `rotate(${-visualPitch}deg)`; 
+        document.getElementById('roll-group').style.transform = `rotate(${data.roll}deg)`;
+        document.getElementById('compass-needle').style.transform = `rotate(${data.heading}deg)`;
+        
+        const portInfo = getNearestPort(data.lat, data.lon);
+        const led5 = document.getElementById('led-5nm');
+        const led2 = document.getElementById('led-2nm');
+        const badge = document.getElementById('port-label-display');
+        
+        if(led5) led5.className = portInfo.dist <= 5 ? "led red" : "led blue";
+        if(portInfo.dist <= 2) {
+            if(led2) led2.className = "led red";
+            if(badge) { badge.style.display = "block"; badge.innerText = portInfo.name; }
+        } else {
+            if(led2) led2.className = "led blue";
+            if(badge) badge.style.display = "none";
+        }
+    }
+
+    // --- GRÁFICOS ---
+    function render10MinWindow() {
+        if (fullData.length === 0) return;
+        const lastDataPoint = fullData[fullData.length - 1];
+        const endTime = lastDataPoint.date.getTime(); 
+        const startTime = endTime - (10 * 60 * 1000); 
+        const windowData = fullData.filter(d => d.date.getTime() >= startTime);
+
+        const c = getColors();
+        const layout = document.getElementById('chart-live').layout;
+        layout.xaxis.range = [new Date(startTime), new Date(endTime)];
+        layout.title.text = `<b>${selectedShipId}</b> - Últimos 10 Minutos`;
+
+        const hoverTexts = windowData.map(d => {
+            return `📅 ${d.date.toLocaleTimeString()}<br>` +
+                   `📍 Lat:${d.lat.toFixed(4)} Lon:${d.lon.toFixed(4)}<br>` +
+                   `🛥 Vel:${d.speed.toFixed(1)}kn 🧭 Rumbo:${d.heading.toFixed(0)}°`;
+        });
+
+        Plotly.react('chart-live', [
+            { x: windowData.map(d=>d.date), y: windowData.map(d=>d.pitch), type: 'line', name: 'Pitch', line: { color: c.p, width: 2 }, text: hoverTexts, hovertemplate: '<b>Pitch: %{y:.2f}°</b><br>%{text}<extra></extra>' },
+            { x: windowData.map(d=>d.date), y: windowData.map(d=>d.roll), type: 'line', name: 'Roll', line: { color: c.r, width: 2 }, text: hoverTexts, hovertemplate: '<b>Roll: %{y:.2f}°</b><br>%{text}<extra></extra>' }
+        ], layout);
+    }
+    
+    function initLiveChart() {
+        const c = getColors();
+        const layout = {
+            title: { text: "Esperando datos...", font: { color: c.txt, size: 14 } },
+            margin: { t: 40, l: 40, r: 20, b: 40 },
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            showlegend: true, legend: { orientation: 'h', y: 1.1, font: { color: c.txt } },
+            xaxis: { gridcolor: c.grid, color: c.txt, tickformat: '%H:%M:%S' },
+            yaxis: { gridcolor: c.grid, color: c.txt, ticksuffix: '°' },
+            hovermode: 'closest'
+        };
+        Plotly.newPlot('chart-live', [{x:[], y:[], type:'line'}, {x:[], y:[], type:'line'}], layout, {responsive:true, displayModeBar:false});
+    }
+
+    function drawInitialPlot(data) {
+        const c = getColors();
+        const layout = document.getElementById('chart-live').layout;
+        layout.title.text = `<b>${selectedShipId}</b> - Historial Reciente`;
+        const hoverTexts = data.map(d => {
+            return `📅 ${d.date.toLocaleTimeString()}<br>📍 Lat:${d.lat.toFixed(4)} Lon:${d.lon.toFixed(4)}<br>🛥 Vel:${d.speed.toFixed(1)}kn 🧭 Rumbo:${d.heading.toFixed(0)}°`;
+        });
+        Plotly.newPlot('chart-live', [
+            { x: data.map(d=>d.date), y: data.map(d=>d.pitch), type: 'line', name: 'Pitch', line: { color: c.p, width: 2 }, text: hoverTexts, hovertemplate: '<b>Pitch: %{y:.2f}°</b><br>%{text}<extra></extra>' },
+            { x: data.map(d=>d.date), y: data.map(d=>d.roll), type: 'line', name: 'Roll', line: { color: c.r, width: 2 }, text: hoverTexts, hovertemplate: '<b>Roll: %{y:.2f}°</b><br>%{text}<extra></extra>' }
+        ], layout);
+    }
+
+    function getColors() {
+        const style = getComputedStyle(document.body);
+        return isNightMode ? { txt: '#e0e0e0', grid: '#333', p: '#ff5252', r: '#ffb74d' } : { txt: '#333', grid: '#eee', p: '#014377', r: '#ff6f00' };
+    }
+
+    function toggleNightMode() {
+        document.body.classList.toggle('night-mode');
+        isNightMode = document.body.classList.contains('night-mode');
+        if(isChartInitialized) render10MinWindow();
+    }
+
+    function openMap() {
+        document.getElementById('mapModal').style.display = 'block';
+        if (!map) {
+            map = L.map('map').setView([-12.0, -77.0], 5);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+        }
+        setTimeout(() => map.invalidateSize(), 200);
+    }
+
+    // --- SIMULACIÓN ---
+    function generateMockFleet() {
+        const ships = ['TASA 43', 'TASA 38', 'TASA 412'];
+        const now = Date.now();
+        return ships.map(id => {
+            let time = now;
+            if (id === 'TASA 43') time = now - (2 * 60 * 60 * 1000); 
+            const p = Math.sin(now / 2000 + ships.indexOf(id)) * 5;
+            const r = Math.cos(now / 2500 + ships.indexOf(id)) * 5;
+            let tipo = "", estado = "DESACTIVADA", val = 0, calaID = "";
+            if(id === 'TASA 412') { tipo = 'ROLL_ESTRIBOR'; estado = 'ACTIVADA'; val = 21.3; }
+            if(id === 'TASA 43') { calaID = "C-20251218-01"; }
+            return {
+                ship_id: id, date: new Date(time), pitch: p, roll: r, speed: 10,
+                heading: (now / 100) % 360, lat: -12.0 + (ships.indexOf(id) * 0.5), lon: -77.1,
+                TipoAlarma: tipo, EstadoAlarma: estado, ValorActual: val, CalaID: calaID
+            };
+        });
+    }
+
+    function generateMockHistory() {
+        const arr = [];
+        const now = Date.now();
+        for(let i=0; i<600; i++) { 
+            const t = now - (i * 1000);
+            arr.unshift({
+                date: new Date(t), pitch: Math.sin(t / 2000) * 5, roll: Math.cos(t / 2500) * 8, speed: 10, heading: 0, lat: -12, lon: -77
+            });
+        }
+        return arr;
+    }
+</script>
+</body>
+</html>
