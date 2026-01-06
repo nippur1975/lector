@@ -4,11 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitor TASA - Centro de Control V20.0 (Fix Comillas ID)</title>
-    
+
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Added libraries for file reading -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
         :root {
@@ -37,21 +40,24 @@
             --cala-item-bg: #220000; --cala-item-border: #550000; --cala-id-bg: #440000; --cala-id-text: #ff9999;
         }
         body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px; background-color: var(--bg-body); color: var(--text-main); transition: background 0.3s; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-        
+
         .header-compact { display: flex; justify-content: space-between; align-items: center; background: var(--header-bg); padding: 8px 15px; border-radius: 8px; border: 1px solid var(--border-col); box-shadow: var(--shadow); margin-bottom: 10px; flex-shrink: 0; }
         .logo-title { font-weight: 900; font-size: 1.1rem; color: var(--primary-col); display: flex; align-items: center; gap: 8px; }
         select, button { padding: 5px 10px; border-radius: 4px; border: 1px solid #ccc; cursor: pointer; font-weight: 600; font-size: 0.85rem; background: var(--bg-panel); color: var(--text-main); }
         .btn-primary { background-color: var(--primary-col); color: white; border: none; }
-        
+
+        /* Added for File Input */
+        .input-wrapper label { cursor: pointer; color: var(--primary-col); font-weight: bold; margin-right: 10px;}
+
         .dashboard-grid { display: grid; grid-template-columns: 280px 1fr 260px; gap: 15px; flex-grow: 1; overflow: hidden; }
-        
+
         /* COLUMNA 1 */
         .col-visuals { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
         .ship-box { background: linear-gradient(180deg, #e1f5fe 0%, #b3e5fc 60%, #0288d1 60%); border-radius: 12px; position: relative; overflow: hidden; border: 1px solid var(--border-col); height: 240px; flex-shrink: 0; }
         body.night-mode .ship-box { background: linear-gradient(180deg, #001122 0%, #000000 100%); border-color: #444; }
         .viz-wrapper { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
         .ship-svg { width: 100%; height: 100%; }
-        
+
         .rotating-group { transition: transform 0.3s ease-out; transform-box: fill-box; }
         #compass-needle { transform-origin: center; }
 
@@ -62,25 +68,25 @@
         /* COLUMNA 2 - LEDS y Charts */
         .col-center { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 5px; }
         .panel { background: var(--bg-panel); border: 1px solid var(--border-col); border-radius: 8px; padding: 10px; box-shadow: var(--shadow); flex-shrink: 0; }
-        
+
         .command-panel { display: flex; justify-content: space-between; align-items: center; padding: 5px; gap: 10px; }
         .cmd-left { display: flex; flex-direction: column; gap: 8px; text-align: left; min-width: 140px; }
         .coord-row { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #eee; padding-bottom: 2px; }
         .coord-label { font-size: 0.7rem; font-weight: 800; color: #78909c; text-transform: uppercase; }
         .coord-val { font-family: 'Roboto Mono', monospace; font-size: 0.9rem; font-weight: 700; color: var(--text-main); }
-        
+
         .cmd-center-col { display: flex; flex-direction: column; align-items: center; justify-content: center; flex-grow: 1; }
         .ship-main-title { font-size: 1.8rem; font-weight: 900; color: var(--text-main); margin-bottom: 5px; line-height: 1; }
         .heading-label { font-size: 0.65rem; font-weight: bold; color: var(--text-muted); margin-bottom: 2px; }
         .heading-val-text { font-weight: bold; font-size: 1rem; margin-top: -5px; }
-        
+
         .cmd-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; min-width: 120px; }
         .led-prox-row { display: flex; gap: 15px; margin-bottom: 5px; }
         .led-mini-container { display: flex; flex-direction: column; align-items: center; }
         .led-mini-label { font-size: 0.6rem; font-weight: bold; color: #666; margin-top: 2px; }
         .port-badge { border: 1px solid #d32f2f; color: #d32f2f; background: #fff; font-weight: 800; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; margin-bottom: 5px; display: none; }
         body.night-mode .port-badge { background: #3b0000; color: #ff5252; border-color: #ff5252; }
-        
+
         .velocity-group { display: flex; align-items: baseline; gap: 5px; }
         .vel-label { font-size: 1rem; color: #666; font-weight: 300; }
         .vel-number { font-size: 2rem; font-weight: 700; color: var(--text-main); line-height: 1; }
@@ -89,7 +95,7 @@
         .led { width: var(--led-size); height: var(--led-size); border-radius: 50%; background: #ccc; border: 2px solid #999; margin-bottom: 2px; }
         .led.blue { background: #2979ff; border-color: #1565c0; box-shadow: 0 0 8px #2979ff; }
         .led.red { background: #d50000; border-color: #b71c1c; box-shadow: 0 0 15px #ff1744; }
-        
+
         .live-chart-wrapper { height: 180px; width: 100%; }
         .history-chart-wrapper { height: 250px; width: 100%; }
         .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; font-size: 0.9rem; font-weight: bold; }
@@ -104,7 +110,7 @@
         .led-unit { display: flex; flex-direction: column; align-items: center; width: 50px; text-align: center; }
         .led-label { font-size: 0.65rem; font-weight: bold; color: var(--text-muted); }
         .led-ship-name { font-size: 0.6rem; font-weight: 900; color: #d32f2f; background: #ffebee; padding: 1px 4px; border-radius: 3px; display: none; white-space: nowrap; margin-top: 2px;}
-        
+
         .alert-item { background: var(--alert-bg); border-left: 4px solid var(--alert-text); padding: 8px; border-radius: 4px; font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .alert-info { display: flex; flex-direction: column; }
         .alert-ship { font-weight: 900; color: var(--alert-text); }
@@ -119,6 +125,12 @@
         .map-header { padding: 10px; background: var(--primary-col); color: white; display: flex; justify-content: space-between; align-items: center; }
         #map { flex-grow: 1; width: 100%; height: 100%; cursor: crosshair; }
 
+        #map-tooltip {
+            display:none; position:absolute; background:rgba(0, 0, 0, 0.85); color:white;
+            padding:10px; border-radius:6px; pointer-events:none; z-index:9999;
+            font-size:0.8rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 1px solid #444; min-width: 150px;
+        }
+
         @media (max-width: 1000px) { .dashboard-grid { grid-template-columns: 1fr; display: block; overflow-y: auto; } body { height: auto; overflow: auto; } .col-visuals, .col-center, .col-alerts { margin-bottom: 20px; height: auto; border: none; } .col-alerts { height: 250px; border: 1px solid var(--border-col); } }
     </style>
 </head>
@@ -127,9 +139,16 @@
 <header class="header-compact">
     <div class="logo-title"><span>⚓</span> MONITOR FLOTA TASA</div>
     <div style="display:flex; gap:10px; align-items:center;">
+
+        <!-- File Input Integration -->
+        <div class="input-wrapper" style="background:var(--bg-panel); padding:4px 8px; border-radius:4px; border:1px solid #ccc;">
+            <label for="fileInput">📂 Cargar</label>
+            <input type="file" id="fileInput" accept=".csv, .json, .xlsx, .xls" style="display:none;">
+        </div>
+
         <select id="shipSelect" onchange="changeShip(this.value)"><option>Cargando...</option></select>
         <div id="status-msg" style="font-size:0.8rem; font-weight:bold; color:gray;">● INICIANDO...</div>
-        
+
         <button onclick="openMap()">🗺 Mapa</button>
         <button class="btn-primary" onclick="toggleNightMode()">🌙</button>
     </div>
@@ -226,6 +245,8 @@
                 <span>📅 Historial</span>
                 <div class="tabs-container">
                     <button class="tab-btn active" id="btn-today">Hoy</button>
+                    <!-- Day selector added -->
+                    <select id="daySelector" onchange="setChartMode('day', this)" style="display:none;"></select>
                     <button class="tab-btn">1h</button>
                     <button class="tab-btn">3D</button>
                 </div>
@@ -250,30 +271,49 @@
 <div id="mapModal">
     <div class="map-wrapper">
         <div class="map-header">
-            <span>🗺 Mapa Flota</span>
-            <button onclick="document.getElementById('mapModal').style.display='none'" style="color:red; background:white; padding:2px 8px;">✖</button>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span>🗺 Mapa Flota</span>
+                <button id="btn-measure" onclick="toggleRuler()" style="background:#ff9800; border:none; color:white; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold; font-size:0.8rem;">📏 Regla (OFF)</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <label style="cursor:pointer; display:flex; align-items:center; gap:5px; font-size:0.8rem;">
+                    <input type="checkbox" id="chk-map-info" checked onchange="toggleMapTooltipState()"> Info
+                </label>
+                <button onclick="document.getElementById('mapModal').style.display='none'" style="color:red; background:white; padding:2px 8px;">✖</button>
+            </div>
         </div>
         <div id="map"></div>
+        <div id="map-tooltip"></div>
     </div>
 </div>
 
 <script>
+    document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+
     // --- CONFIGURACIÓN ---
     const API_BASE = 'http://localhost:3000/api';
-    let fullData = []; 
+    let fullData = [];
     let selectedShipId = null;
     let isNightMode = false;
     let wasOffline = false;
     let isChartInitialized = false;
     let map = null;
+    let isFileMode = false; // Flag to distinguish between API and File modes
+
+    // Map Extras
+    let mapLayers = [];
+    let isMeasuring = false;
+    let rulerPoints = [];
+    let rulerLayerGroup = null;
+    let isTooltipEnabled = true;
 
     // CONFIGURACIÓN DE CONEXIÓN
-    const CONNECTION_THRESHOLD_MINUTES = 5; 
+    const CONNECTION_THRESHOLD_MINUTES = 5;
 
     // Base de datos de puertos para cálculo de distancia
     const PORTS_DB = [
-        { name: "Paita", lat: -5.096, lon: -81.112 },      
-        { name: "Bayovar", lat: -5.833, lon: -81.050 },    
+        { name: "Paita", lat: -5.096, lon: -81.112 },
+        { name: "Bayovar", lat: -5.833, lon: -81.050 },
         { name: "Chimbote", lat: -9.075, lon: -78.614 },
         { name: "TASA Callao", lat: -11.933, lon: -77.142 },
         { name: "Pisco", lat: -13.816, lon: -76.250 },
@@ -282,10 +322,148 @@
 
     // --- INICIALIZACIÓN ---
     window.onload = () => {
-        loadShips(); 
+        loadShips();
         initLiveChart();
-        setInterval(monitorLiveFleet, 1000); 
+        setInterval(monitorLiveFleet, 1000);
     };
+
+    // --- FILE HANDLING FUNCTIONS (Added) ---
+    function handleFileSelect(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const status = document.getElementById('status-msg');
+        status.innerText = "● LEYENDO ARCHIVO...";
+        status.style.color = "orange";
+
+        isFileMode = true; // Switch to file mode
+
+        const reader = new FileReader();
+        try {
+            if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                reader.readAsArrayBuffer(file);
+                reader.onload = function(event) {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                    processFileData(json);
+                };
+            } else {
+                reader.readAsText(file);
+                reader.onload = function(event) {
+                    const content = event.target.result;
+                    if (file.name.endsWith('.json')) {
+                        processFileData(JSON.parse(content));
+                    } else {
+                        Papa.parse(content, {
+                            header: true, dynamicTyping: true, skipEmptyLines: true,
+                            complete: function(results) { processFileData(results.data); }
+                        });
+                    }
+                };
+            }
+        } catch(error) { console.error(error); status.innerText = "● ERROR"; }
+    }
+
+    function processFileData(rawData) {
+        // Normalize file data to app structure
+        const cleanData = rawData.map(d => parseData(d)).filter(d => !isNaN(d.date.getTime()));
+        cleanData.sort((a,b) => a.date - b.date);
+
+        if(cleanData.length === 0) return;
+
+        fullData = cleanData;
+        selectedShipId = cleanData[0].ship_id || "ARCHIVO";
+        document.getElementById('display-ship-name').innerText = selectedShipId;
+
+        // Update Status
+        document.getElementById('status-msg').innerText = "● ARCHIVO CARGADO";
+        document.getElementById('status-msg').style.color = "#00e676";
+
+        // Update Charts and Visuals with the last point
+        const lastPoint = cleanData[cleanData.length - 1];
+        updateVisuals(lastPoint);
+
+        // Render Charts
+        const windowData = cleanData.filter(d => d.date.getTime() >= (lastPoint.date.getTime() - 600000));
+        drawInitialPlot(windowData); // Live chart shows last 10 min of file
+
+        // Populate History
+        populateDaySelector();
+        const selector = document.getElementById('daySelector');
+        selector.style.display = 'inline-block';
+        if(selector.options.length > 0) { selector.selectedIndex = 0; setChartMode('day', selector); }
+    }
+
+    /* --- GESTION DE FECHAS Y MODOS --- */
+    function populateDaySelector() {
+        if (fullData.length === 0) return;
+        const selector = document.getElementById('daySelector');
+        selector.innerHTML = '';
+        const lastDate = fullData[fullData.length - 1].date;
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(lastDate);
+            d.setDate(lastDate.getDate() - i);
+            const val = d.toISOString().split('T')[0];
+            const label = i === 0 ? `Hoy` : i === 1 ? `Ayer` : `${d.getDate()}/${d.getMonth()+1}`;
+            const option = document.createElement('option');
+            option.value = val; option.text = label;
+            selector.appendChild(option);
+        }
+    }
+
+    function setChartMode(mode, element) {
+        if (fullData.length === 0) return;
+        let filteredData = [];
+        const selector = document.getElementById('daySelector');
+
+        if (mode === 'day') {
+            const [y, m, d] = selector.value.split('-').map(Number);
+            filteredData = fullData.filter(x => x.date.getFullYear() === y && x.date.getMonth() === m - 1 && x.date.getDate() === d);
+            updateCalaLegend(filteredData);
+        } else {
+            // Default fallbacks
+            filteredData = fullData;
+        }
+
+        // Render History Chart
+        const c = getColors();
+        const layout = document.getElementById('chart-history').layout || {
+            title: { text: "Historial", font: { color: c.txt } },
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            xaxis: { gridcolor: c.grid, color: c.txt }, yaxis: { gridcolor: c.grid, color: c.txt }
+        };
+
+        const traceP = { x: filteredData.map(d=>d.date), y: filteredData.map(d=>d.pitch), name: 'Pitch', line: {color: c.p} };
+        const traceR = { x: filteredData.map(d=>d.date), y: filteredData.map(d=>d.roll), name: 'Roll', line: {color: c.r} };
+
+        Plotly.newPlot('chart-history', [traceP, traceR], layout);
+    }
+
+    function updateCalaLegend(data) {
+        // Only active if we have cala data
+        const calas = {};
+        data.forEach(d => {
+            if(d.CalaID && d.CalaID !== 0 && d.CalaID !== "0") {
+                if(!calas[d.CalaID]) calas[d.CalaID] = { s: d.date, e: d.date, id: d.CalaID };
+                else {
+                    if(d.date < calas[d.CalaID].s) calas[d.CalaID].s = d.date;
+                    if(d.date > calas[d.CalaID].e) calas[d.CalaID].e = d.date;
+                }
+            }
+        });
+        // Note: In this integrated version, we don't have a dedicated "Cala Legend" container in the API UI.
+        // We could append it to the alerts list or chart header, but for now we just process logic.
+    }
+
+    function getVal(row, keys) {
+        if (!row || typeof row !== 'object') return undefined;
+        for (let k of Object.keys(row)) {
+            if (keys.includes(k.toLowerCase().trim())) return row[k];
+        }
+        return undefined;
+    }
 
     // --- FUNCIONES MATEMÁTICAS ---
     function toDMS(deg, isLat) {
@@ -301,14 +479,23 @@
         return `${degrees}° ${minutes}' ${seconds}" ${cardinal}`;
     }
 
+    function getDistanceNM(lat1, lon1, lat2, lon2) {
+        if(!lat1 || !lon1 || !lat2 || !lon2) return 0;
+        const R = 3440.065;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
     function getNearestPort(lat, lon) {
-        let minD = 99999; 
+        let minD = 99999;
         let closest = { name: "Alta Mar", dist: 99999 };
         PORTS_DB.forEach(p => {
-            const dLat = (lat - p.lat) * 60;
-            const dLon = (lon - p.lon) * 60 * Math.cos(lat * Math.PI / 180);
-            const dist = Math.sqrt(dLat*dLat + dLon*dLon);
-            if (dist < minD) { minD = dist; closest = { name: p.name, dist: dist }; }
+            const d = getDistanceNM(lat, lon, p.lat, p.lon);
+            if (d < minD) { minD = d; closest = { name: p.name, dist: d }; }
         });
         return closest;
     }
@@ -316,11 +503,12 @@
     // --- LÓGICA PRINCIPAL ---
 
     function changeShip(id) {
+        isFileMode = false; // Back to API mode
         selectedShipId = id;
-        document.getElementById('display-ship-name').innerText = id; 
-        fullData = []; 
+        document.getElementById('display-ship-name').innerText = id;
+        fullData = [];
         isChartInitialized = false;
-        
+
         // Reset status
         document.getElementById('status-msg').innerText = "● CARGANDO...";
         document.getElementById('status-msg').style.color = "gray";
@@ -352,7 +540,7 @@
                 const res = await fetch(`${API_BASE}/datos?shipId=${shipId}`);
                 if(res.ok) {
                     const rawData = await res.json();
-                    
+
                     let cleanData = Array.isArray(rawData) ? rawData : (rawData.recordset || []);
 
                     // Normalización del ID para filtrado
@@ -369,12 +557,12 @@
 
             if (fullData.length > 0) {
                 const lastPoint = fullData[fullData.length - 1];
-                
+
                 // Actualizar gráfica
                 const windowData = fullData.filter(d => d.date.getTime() >= (lastPoint.date.getTime() - 600000));
                 drawInitialPlot(windowData);
                 isChartInitialized = true;
-                
+
                 // Actualizar Visuales y CONEXIÓN
                 updateVisuals(lastPoint);
                 updateConnectionStatus(lastPoint);
@@ -400,16 +588,18 @@
 
         if (diffMinutes < CONNECTION_THRESHOLD_MINUTES) {
             statusEl.innerHTML = "● ONLINE";
-            statusEl.style.color = "#00e676"; 
+            statusEl.style.color = "#00e676";
         } else {
             // Muestra fecha de desconexión
             const dateStr = lastPoint.date.toLocaleString('es-PE');
             statusEl.innerHTML = `● 🔴 DESCONECTADO (Desde: ${dateStr})`;
-            statusEl.style.color = "#ff3d00"; 
+            statusEl.style.color = "#ff3d00";
         }
     }
 
     async function monitorLiveFleet() {
+        if(isFileMode) return; // Don't monitor live if viewing file
+
         let fleetData = [];
 
         if (!wasOffline) {
@@ -428,9 +618,9 @@
 
         // 2. Actualizar Visualización
         if(!selectedShipId) return;
-        
+
         const cleanFleet = fleetData.map(d => parseData(d));
-        
+
         // Búsqueda flexible en el feed en vivo
         const targetId = String(selectedShipId).trim().toUpperCase();
         const myShip = cleanFleet.find(s => s.ship_id.toUpperCase().includes(targetId));
@@ -449,36 +639,43 @@
 
     // --- PARSEO AGRESIVO: Elimina ' y " de los IDs ---
     function parseData(d) {
-        let rawDate = d.Date_event || d.date_event || d.date || Date.now();
-        let dateObj = new Date(rawDate);
-        const userOffset = dateObj.getTimezoneOffset() * 60000;
-        dateObj = new Date(dateObj.getTime() + userOffset);
+        // Handle varied input keys (File vs API)
+        let rawDate = d.Date_event || d.date_event || d.date || d.fecha || d.timestamp || Date.now();
+        let dateObj;
+        if (typeof rawDate === 'string') {
+            const match = rawDate.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})(.*)$/);
+            dateObj = match ? new Date(`${match[3]}-${match[2]}-${match[1]}${match[4]}`) : new Date(rawDate);
+        } else {
+            dateObj = new Date(rawDate);
+        }
 
-        // LIMPIEZA DE ID: Elimina cualquier ' o "
-        // Esto convierte 'T412' (con comillas) en T412
-        let rawID = d.ship_id || d.ShipID || "";
+        // Adjust timezone if needed? API usually sends UTC or local. File might be local.
+        // Keeping simple for now.
+
+        // LIMPIEZA DE ID
+        let rawID = d.ship_id || d.ShipID || d.id || d.name || "";
         let cleanID = String(rawID).replace(/['"]/g, '').trim();
 
         return {
             ...d,
-            ship_id: cleanID, // ID limpio
+            ship_id: cleanID,
             date: dateObj,
-            lat: parseFloat(d.Latitud || d.lat || 0),
-            lon: parseFloat(d.Longitud || d.lon || 0),
-            speed: parseFloat(d.Velocidad || d.speed || 0),
-            heading: parseFloat(d.Heading || d.heading || 0),
-            pitch: parseFloat(d.Pitch || d.pitch || 0),
-            roll: parseFloat(d.Roll || d.roll || 0),
-            TipoAlarma: d.TipoAlarma, 
-            EstadoAlarma: d.EstadoAlarma, 
-            ValorActual: d.ValorActual, 
-            CalaID: d.CalaID
+            lat: parseFloat(d.Latitud || d.lat || d.latitude || 0),
+            lon: parseFloat(d.Longitud || d.lon || d.longitude || 0),
+            speed: parseFloat(d.Velocidad || d.speed || d.velocidad || 0),
+            heading: parseFloat(d.Heading || d.heading || d.rumbo || 0),
+            pitch: parseFloat(d.Pitch || d.pitch || d.cabeceo || 0),
+            roll: parseFloat(d.Roll || d.roll || d.balanceo || 0),
+            TipoAlarma: d.TipoAlarma,
+            EstadoAlarma: d.EstadoAlarma,
+            ValorActual: d.ValorActual,
+            CalaID: d.CalaID || d.cala_id || d.calaId || 0
         };
     }
 
     function updateFleetAlerts(fleet) {
         const listEl = document.getElementById('alerts-list');
-        listEl.innerHTML = ''; 
+        listEl.innerHTML = '';
 
         let globalPitch = false; let offenderPitch = "";
         let globalRoll = false;  let offenderRoll = "";
@@ -486,7 +683,7 @@
         let hasAlerts = false;
 
         fleet.forEach(ship => {
-            const estado = ship.EstadoAlarma || ""; 
+            const estado = ship.EstadoAlarma || "";
             const isActive = (estado === "ACTIVADA" || estado === "ON" || estado == 1);
 
             if (isActive) {
@@ -530,7 +727,7 @@
     function updateLedStatus(type, isActive, shipName) {
         const led = document.getElementById(`led-${type}`);
         const tag = document.getElementById(`tag-${type}`);
-        if (isActive) { led.className = "led red"; tag.style.display = "block"; tag.innerText = shipName; } 
+        if (isActive) { led.className = "led red"; tag.style.display = "block"; tag.innerText = shipName; }
         else { led.className = "led blue"; tag.style.display = "none"; }
     }
 
@@ -539,7 +736,7 @@
         document.getElementById('val-roll').innerText = data.roll.toFixed(1) + "°";
         document.getElementById('speed-val').innerText = data.speed.toFixed(1);
         document.getElementById('heading-val').innerText = Math.round(data.heading).toString().padStart(3,'0') + "°";
-        
+
         document.getElementById('val-lat').innerText = toDMS(data.lat, true);
         document.getElementById('val-lon').innerText = toDMS(data.lon, false);
 
@@ -553,15 +750,15 @@
             const sign = Math.sign(data.pitch);
             visualPitch = sign * (8.0 + (Math.abs(data.pitch) - 8.0) * 0.4);
         }
-        document.getElementById('pitch-group').style.transform = `rotate(${-visualPitch}deg)`; 
+        document.getElementById('pitch-group').style.transform = `rotate(${-visualPitch}deg)`;
         document.getElementById('roll-group').style.transform = `rotate(${data.roll}deg)`;
         document.getElementById('compass-needle').style.transform = `rotate(${data.heading}deg)`;
-        
+
         const portInfo = getNearestPort(data.lat, data.lon);
         const led5 = document.getElementById('led-5nm');
         const led2 = document.getElementById('led-2nm');
         const badge = document.getElementById('port-label-display');
-        
+
         if(led5) led5.className = portInfo.dist <= 5 ? "led red" : "led blue";
         if(portInfo.dist <= 2) {
             if(led2) led2.className = "led red";
@@ -576,8 +773,8 @@
     function render10MinWindow() {
         if (fullData.length === 0) return;
         const lastDataPoint = fullData[fullData.length - 1];
-        const endTime = lastDataPoint.date.getTime(); 
-        const startTime = endTime - (10 * 60 * 1000); 
+        const endTime = lastDataPoint.date.getTime();
+        const startTime = endTime - (10 * 60 * 1000);
         const windowData = fullData.filter(d => d.date.getTime() >= startTime);
 
         const c = getColors();
@@ -596,7 +793,7 @@
             { x: windowData.map(d=>d.date), y: windowData.map(d=>d.roll), type: 'line', name: 'Roll', line: { color: c.r, width: 2 }, text: hoverTexts, hovertemplate: '<b>Roll: %{y:.2f}°</b><br>%{text}<extra></extra>' }
         ], layout);
     }
-    
+
     function initLiveChart() {
         const c = getColors();
         const layout = {
@@ -635,13 +832,203 @@
         if(isChartInitialized) render10MinWindow();
     }
 
+    // --- MAP FUNCTIONS (Enhanced) ---
     function openMap() {
         document.getElementById('mapModal').style.display = 'block';
         if (!map) {
             map = L.map('map').setView([-12.0, -77.0], 5);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+
+            // Add interaction handlers
+            map.on('mousemove', handleMapHover);
+            map.on('click', handleMapClick);
         }
+
+        // Clean layers
+        mapLayers.forEach(l => map.removeLayer(l));
+        mapLayers = [];
+        if(rulerLayerGroup) rulerLayerGroup.clearLayers();
+
+        // Draw Track
+        if (fullData.length > 0) {
+            drawTrackOnMap(fullData);
+        }
+
         setTimeout(() => map.invalidateSize(), 200);
+    }
+
+    function toggleMapTooltipState() {
+        isTooltipEnabled = document.getElementById('chk-map-info').checked;
+        if(!isTooltipEnabled) document.getElementById('map-tooltip').style.display = 'none';
+    }
+
+    function toggleRuler() {
+        isMeasuring = !isMeasuring;
+        const btn = document.getElementById('btn-measure');
+        const msg = document.getElementById('ruler-msg'); // Helper msg if exists
+
+        if(isMeasuring) {
+            btn.innerText = "📏 Cancelar"; btn.style.background = "#d32f2f";
+            if(!rulerLayerGroup && map) rulerLayerGroup = L.layerGroup().addTo(map);
+            rulerPoints = []; rulerLayerGroup.clearLayers();
+        } else {
+            btn.innerText = "📏 Regla (OFF)"; btn.style.background = "#ff9800";
+            if(rulerLayerGroup) rulerLayerGroup.clearLayers();
+            rulerPoints = [];
+        }
+    }
+
+    function drawTrackOnMap(data) {
+        // 1. Base Track (Blue)
+        const latLngs = data.map(d => [d.lat, d.lon]);
+        if (latLngs.length > 1) {
+            const poly = L.polyline(latLngs, { color: '#1565c0', weight: 4, opacity: 0.7 }).addTo(map);
+            mapLayers.push(poly);
+            map.fitBounds(poly.getBounds(), { padding: [50, 50] });
+        }
+
+        // 2. Highlight Calas (Red)
+        const calaRanges = {};
+        data.forEach(d => {
+            if (d.CalaID && d.CalaID !== 0 && d.CalaID !== "0") {
+                if (!calaRanges[d.CalaID]) calaRanges[d.CalaID] = { start: d.date, end: d.date };
+                else {
+                    if (d.date < calaRanges[d.CalaID].start) calaRanges[d.CalaID].start = d.date;
+                    if (d.date > calaRanges[d.CalaID].end) calaRanges[d.CalaID].end = d.date;
+                }
+            }
+        });
+
+        Object.keys(calaRanges).forEach(id => {
+            const range = calaRanges[id];
+            const calaPoints = data.filter(d => d.date >= range.start && d.date <= range.end);
+            const calaLatLngs = calaPoints.map(d => [d.lat, d.lon]);
+
+            if (calaLatLngs.length > 1) {
+                const line = L.polyline(calaLatLngs, { color: '#d32f2f', weight: 5, opacity: 1 }).addTo(map);
+                mapLayers.push(line);
+
+                L.circleMarker(calaLatLngs[0], { radius: 5, fillColor: '#00e676', color: '#fff', weight: 1, fillOpacity: 1 }).addTo(map)
+                    .bindPopup(`<b>Inicio Cala #${id}</b><br>${range.start.toLocaleTimeString()}`).on('add', function(){ mapLayers.push(this); });
+
+                L.circleMarker(calaLatLngs[calaLatLngs.length-1], { radius: 5, fillColor: '#ff1744', color: '#fff', weight: 1, fillOpacity: 1 }).addTo(map)
+                    .bindPopup(`<b>Fin Cala #${id}</b><br>${range.end.toLocaleTimeString()}`).on('add', function(){ mapLayers.push(this); });
+            }
+        });
+    }
+
+    // --- Ruler & Interpolation Logic ---
+    function getInterpolatedData(mouseLat, mouseLon) {
+        let minDistPixels = 20;
+        let closestData = null;
+        const mousePoint = map.latLngToContainerPoint([mouseLat, mouseLon]);
+
+        for (let i = 0; i < fullData.length - 1; i++) {
+            const p1 = fullData[i];
+            const p2 = fullData[i+1];
+
+            // Optimization
+            if (mouseLat < Math.min(p1.lat, p2.lat)-0.01 || mouseLat > Math.max(p1.lat, p2.lat)+0.01 ||
+                mouseLon < Math.min(p1.lon, p2.lon)-0.01 || mouseLon > Math.max(p1.lon, p2.lon)+0.01) continue;
+
+            const point1 = map.latLngToContainerPoint([p1.lat, p1.lon]);
+            const point2 = map.latLngToContainerPoint([p2.lat, p2.lon]);
+
+            const A = mousePoint.x - point1.x;
+            const B = mousePoint.y - point1.y;
+            const C = point2.x - point1.x;
+            const D = point2.y - point1.y;
+
+            const dot = A * C + B * D;
+            const len_sq = C * C + D * D;
+            let param = -1;
+            if (len_sq !== 0) param = dot / len_sq;
+
+            let xx, yy;
+            if (param < 0) { xx = point1.x; yy = point1.y; param = 0; }
+            else if (param > 1) { xx = point2.x; yy = point2.y; param = 1; }
+            else { xx = point1.x + param * C; yy = point1.y + param * D; }
+
+            const dx = mousePoint.x - xx;
+            const dy = mousePoint.y - yy;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < minDistPixels) {
+                minDistPixels = dist;
+                const timeDiff = p2.date.getTime() - p1.date.getTime();
+                const newTime = new Date(p1.date.getTime() + (timeDiff * param));
+
+                closestData = {
+                    lat: p1.lat + (p2.lat - p1.lat) * param,
+                    lon: p1.lon + (p2.lon - p1.lon) * param,
+                    date: newTime,
+                    speed: p1.speed + (p2.speed - p1.speed) * param,
+                    heading: p1.heading,
+                    CalaID: p1.CalaID
+                };
+            }
+        }
+        return closestData;
+    }
+
+    function handleMapHover(e) {
+        const mouseLat = e.latlng.lat;
+        const mouseLon = e.latlng.lng;
+
+        // Ruler Logic
+        if(isMeasuring && rulerPoints.length === 1 && rulerLayerGroup) {
+            rulerLayerGroup.eachLayer(layer => { if(layer.options.dashArray === '5, 10') rulerLayerGroup.removeLayer(layer); });
+            L.polyline([rulerPoints[0], [mouseLat, mouseLon]], { color: 'orange', dashArray: '5, 10', weight: 2 }).addTo(rulerLayerGroup);
+        }
+
+        // Interpolation Tooltip Logic
+        if(isMeasuring || !isTooltipEnabled) {
+            document.getElementById('map-tooltip').style.display = 'none';
+            return;
+        }
+
+        const closestPoint = getInterpolatedData(mouseLat, mouseLon);
+        const tooltip = document.getElementById('map-tooltip');
+
+        if (closestPoint) {
+            const layerPoint = map.latLngToContainerPoint([closestPoint.lat, closestPoint.lon]);
+            tooltip.style.display = 'block';
+            tooltip.style.left = (layerPoint.x + 15) + 'px';
+            tooltip.style.top = (layerPoint.y + 15) + 'px';
+
+            const estadoHTML = (closestPoint.CalaID && closestPoint.CalaID !== 0 && closestPoint.CalaID !== "0")
+                ? `<span style="color:#ff5252; font-weight:bold;">🎣 EN CALA #${closestPoint.CalaID}</span>`
+                : `<span style="color:#448aff; font-weight:bold;">🚢 NAVEGANDO</span>`;
+
+            tooltip.innerHTML = `
+                ${estadoHTML}<br>
+                <hr style="border:0; border-top:1px solid #555; margin:5px 0;">
+                <b>📅 Hora:</b> ${closestPoint.date.toLocaleTimeString()}<br>
+                <b>💨 Vel:</b> ${closestPoint.speed.toFixed(1)} kn <span style="font-size:0.7em; color:#aaa;">(calc)</span> | <b>🧭 Rumbo:</b> ${closestPoint.heading.toFixed(0)}°<br>
+                <b>📍 Lat:</b> ${toDMS(closestPoint.lat, true)}<br>
+                <b>📍 Lon:</b> ${toDMS(closestPoint.lon, false)}
+            `;
+        } else {
+            tooltip.style.display = 'none';
+        }
+    }
+
+    function handleMapClick(e) {
+        if(!isMeasuring) return;
+        const pt = [e.latlng.lat, e.latlng.lng];
+        rulerPoints.push(pt);
+
+        L.circleMarker(pt, { radius:4, color:'orange', fillColor:'#fff', fillOpacity:1 }).addTo(rulerLayerGroup);
+
+        if(rulerPoints.length === 2) {
+            const dist = getDistanceNM(rulerPoints[0][0], rulerPoints[0][1], rulerPoints[1][0], rulerPoints[1][1]);
+            L.polyline(rulerPoints, { color: 'orange', weight: 3 }).addTo(rulerLayerGroup);
+            L.popup().setLatLng([(rulerPoints[0][0]+rulerPoints[1][0])/2, (rulerPoints[0][1]+rulerPoints[1][1])/2])
+                .setContent(`<div style="text-align:center; font-weight:bold;">📏 Distancia:<br><span style="font-size:1.2rem; color:#e65100;">${dist.toFixed(2)} NM</span></div>`)
+                .openOn(map);
+            isMeasuring = false;
+            toggleRuler();
+        }
     }
 
     // --- SIMULACIÓN ---
@@ -650,7 +1037,7 @@
         const now = Date.now();
         return ships.map(id => {
             let time = now;
-            if (id === 'TASA 43') time = now - (2 * 60 * 60 * 1000); 
+            if (id === 'TASA 43') time = now - (2 * 60 * 60 * 1000);
             const p = Math.sin(now / 2000 + ships.indexOf(id)) * 5;
             const r = Math.cos(now / 2500 + ships.indexOf(id)) * 5;
             let tipo = "", estado = "DESACTIVADA", val = 0, calaID = "";
@@ -667,7 +1054,7 @@
     function generateMockHistory() {
         const arr = [];
         const now = Date.now();
-        for(let i=0; i<600; i++) { 
+        for(let i=0; i<600; i++) {
             const t = now - (i * 1000);
             arr.unshift({
                 date: new Date(t), pitch: Math.sin(t / 2000) * 5, roll: Math.cos(t / 2500) * 8, speed: 10, heading: 0, lat: -12, lon: -77
